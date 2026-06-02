@@ -1,0 +1,340 @@
+// ============================================================================
+// CFI PLATFORM PRISMA SCHEMA
+// ORM layer for database access
+// ============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// 1. USERS & MERCHANTS
+// ============================================================================
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  phone         String?
+  passwordHash  String    @map("password_hash")
+  firstName     String?   @map("first_name")
+  lastName      String?   @map("last_name")
+  kycStatus     String    @default("pending") @map("kyc_status")
+  kycLevel      String    @default("tier1") @map("kyc_level")
+  amlStatus     String    @default("pending") @map("aml_status")
+  countryCode   String?   @map("country_code")
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
+  ssnHash       String?   @map("ssn_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  merchants    Merchant[]
+  adminUser    AdminUser?
+  auditLogs    AuditLog[]
+  disputes     Dispute[] @relation("DisputeRaisedBy")
+  assignedTo   Dispute[] @relation("DisputeAssignedTo")
+  riskEvents   RiskEvent[] @relation("ResolvedBy")
+
+  @@index([email])
+  @@index([kycStatus])
+  @@index([amlStatus])
+  @@map("users")
+}
+
+model Merchant {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  businessName         String    @map("business_name")
+  businessType         String?
+  taxId                String?   @map("tax_id")
+  settlementBankAccount String? @map("settlement_bank_account")
+  settlementFrequency  String    @default("daily") @map("settlement_frequency")
+  feeTier              String    @default("standard") @map("fee_tier")
+  isActive             Boolean   @default(true) @map("is_active")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallets       Wallet[]
+  transactions  Transaction[]
+  settlements   Settlement[]
+  riskEvents    RiskEvent[]
+  disputes      Dispute[]
+
+  @@index([businessName])
+  @@index([isActive])
+  @@map("merchants")
+}
+
+// ============================================================================
+// 2. WALLETS & BLOCKCHAIN
+// ============================================================================
+
+model Wallet {
+  id                    String    @id @default(uuid()) @db.Uuid
+  merchantId            String    @map("merchant_id") @db.Uuid
+  chain                 String
+  address               String
+  addressType           String    @default("deposit") @map("address_type")
+  balanceSatoshis       BigInt    @default(0) @map("balance_satoshis")
+  balanceWei            BigInt    @default(0) @map("balance_wei")
+  confirmationsRequired Int       @default(6) @map("confirmations_required")
+  lastChecked           DateTime? @map("last_checked")
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([chain, address])
+  @@index([merchantId])
+  @@index([chain])
+  @@map("wallets")
+}
+
+// ============================================================================
+// 3. TRANSACTIONS & SETTLEMENTS
+// ============================================================================
+
+model Transaction {
+  id                   String    @id @default(uuid()) @db.Uuid
+  merchantId           String    @map("merchant_id") @db.Uuid
+  walletId             String?   @map("wallet_id") @db.Uuid
+  txHash               String    @unique @map("tx_hash")
+  chain                String
+  direction            String    @default("inbound")
+  amountCrypto         Decimal   @db.Decimal(20, 8) @map("amount_crypto")
+  amountUsd            Decimal?  @db.Decimal(15, 2) @map("amount_usd")
+  usdRate              Decimal?  @db.Decimal(15, 2) @map("usd_rate")
+  status               String    @default("pending")
+  confirmations        Int       @default(0)
+  requiredConfirmations Int      @default(6) @map("required_confirmations")
+  settlementStatus     String    @default("unsettled") @map("settlement_status")
+  settlementDate       DateTime? @map("settlement_date") @db.Date
+  riskScore            Decimal   @default(0) @db.Decimal(5, 2) @map("risk_score")
+  riskCategory         String    @default("low") @map("risk_category")
+  flaggedForReview     Boolean   @default(false) @map("flagged_for_review")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  confirmedAt          DateTime? @map("confirmed_at")
+  settledAt            DateTime? @map("settled_at")
+
+  merchant      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  wallet        Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  settlement    Settlement?
+  riskEvents    RiskEvent[]
+  disputes      Dispute[]
+
+  @@index([merchantId])
+  @@index([status])
+  @@index([settlementStatus])
+  @@index([txHash])
+  @@index([riskCategory])
+  @@map("transactions")
+}
+
+model Settlement {
+  id              String    @id @default(uuid()) @db.Uuid
+  merchantId      String    @map("merchant_id") @db.Uuid
+  transactionId   String?   @unique @map("transaction_id") @db.Uuid
+  totalAmountUsd  Decimal   @db.Decimal(15, 2) @map("total_amount_usd")
+  feeUsd          Decimal?  @db.Decimal(10, 2) @map("fee_usd")
+  netAmountUsd    Decimal?  @db.Decimal(15, 2) @map("net_amount_usd")
+  settlementMethod String?  @map("settlement_method")
+  bankAccountId   String?   @map("bank_account_id")
+  status          String    @default("pending")
+  bankReference   String?   @map("bank_reference")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  processedAt     DateTime? @map("processed_at")
+
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  transaction  Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([merchantId])
+  @@index([status])
+  @@map("settlements")
+}
+
+// ============================================================================
+// 4. RISK & COMPLIANCE
+// ============================================================================
+
+model RiskEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  transactionId   String?   @map("transaction_id") @db.Uuid
+  merchantId      String?   @map("merchant_id") @db.Uuid
+  eventType       String
+  severity        String    @default("low")
+  score           Decimal   @db.Decimal(5, 2)
+  reason          String?   @db.Text
+  patternMatched  String?   @map("pattern_matched")
+  actionTaken     String?   @map("action_taken")
+  resolved        Boolean   @default(false)
+  resolvedBy      String?   @map("resolved_by") @db.Uuid
+  resolutionNotes String?   @map("resolution_notes") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  merchant    Merchant? @relation(fields: [merchantId], references: [id], onDelete: SetNull)
+  resolvedByUser User? @relation("ResolvedBy", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  @@index([severity])
+  @@index([resolved])
+  @@map("risk_events")
+}
+
+model AmlWatchlist {
+  id        String    @id @default(uuid()) @db.Uuid
+  address   String
+  chain     String?
+  reason    String?   @db.Text
+  source    String
+  addedDate DateTime  @default(now()) @map("added_date")
+  isActive  Boolean   @default(true) @map("is_active")
+
+  @@unique([address, chain])
+  @@index([address])
+  @@index([isActive])
+  @@map("aml_watchlist")
+}
+
+// ============================================================================
+// 5. TREASURY & LIQUIDITY
+// ============================================================================
+
+model TreasuryAccount {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountName           String    @map("account_name")
+  accountType           String
+  chain                 String?
+  address               String?
+  balanceCrypto         Decimal?  @db.Decimal(20, 8) @map("balance_crypto")
+  balanceUsd            Decimal?  @db.Decimal(15, 2) @map("balance_usd")
+  allocationPercentage  Decimal?  @db.Decimal(5, 2) @map("allocation_percentage")
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([accountType])
+  @@map("treasury_accounts")
+}
+
+model LiquidityPool {
+  id                          String    @id @default(uuid()) @db.Uuid
+  poolName                    String    @map("pool_name")
+  tokenPair                   String    @map("token_pair")
+  totalLiquidityUsd           Decimal?  @db.Decimal(20, 2) @map("total_liquidity_usd")
+  availableLiquidityUsd       Decimal?  @db.Decimal(20, 2) @map("available_liquidity_usd")
+  minReserveUsd               Decimal?  @db.Decimal(20, 2) @map("min_reserve_usd")
+  rebalanceThresholdPercentage Decimal? @db.Decimal(5, 2) @map("rebalance_threshold_percentage")
+  lastRebalanced              DateTime? @map("last_rebalanced")
+  createdAt                   DateTime  @default(now()) @map("created_at")
+
+  @@index([poolName])
+  @@map("liquidity_pools")
+}
+
+// ============================================================================
+// 6. DISPUTES & REFUNDS
+// ============================================================================
+
+model Dispute {
+  id            String    @id @default(uuid()) @db.Uuid
+  transactionId String    @map("transaction_id") @db.Uuid
+  merchantId    String    @map("merchant_id") @db.Uuid
+  disputeType   String
+  description   String?   @db.Text
+  status        String    @default("open")
+  amountUsd     Decimal?  @db.Decimal(15, 2) @map("amount_usd")
+  raisedBy      String?   @map("raised_by") @db.Uuid
+  assignedTo    String?   @map("assigned_to") @db.Uuid
+  resolution    String?   @db.Text
+  resolvedAt    DateTime? @map("resolved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  raisedByUser User? @relation("DisputeRaisedBy", fields: [raisedBy], references: [id])
+  assignedToUser User? @relation("DisputeAssignedTo", fields: [assignedTo], references: [id])
+
+  @@index([status])
+  @@index([merchantId])
+  @@map("disputes")
+}
+
+// ============================================================================
+// 7. AUDIT & COMPLIANCE
+// ============================================================================
+
+model AuditLog {
+  id        String    @id @default(uuid()) @db.Uuid
+  action    String
+  entityType String   @map("entity_type")
+  entityId  String    @map("entity_id")
+  userId    String?   @map("user_id") @db.Uuid
+  oldValues Json?     @map("old_values")
+  newValues Json?     @map("new_values")
+  ipAddress String?   @map("ip_address")
+  userAgent String?   @map("user_agent") @db.Text
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model ComplianceReport {
+  id                 String    @id @default(uuid()) @db.Uuid
+  reportType         String    @map("report_type")
+  periodStart        DateTime  @map("period_start") @db.Date
+  periodEnd          DateTime  @map("period_end") @db.Date
+  totalTransactions  Int       @map("total_transactions")
+  totalVolumeUsd     Decimal   @db.Decimal(20, 2) @map("total_volume_usd")
+  flaggedTransactions Int      @map("flagged_transactions")
+  status             String
+  generatedAt        DateTime  @default(now()) @map("generated_at")
+  submittedAt        DateTime? @map("submitted_at")
+
+  @@index([reportType])
+  @@index([status])
+  @@map("compliance_reports")
+}
+
+// ============================================================================
+// 8. ADMIN & SYSTEM
+// ============================================================================
+
+model AdminUser {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @map("user_id") @db.Uuid
+  role        String
+  permissions Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_users")
+}
+
+model SystemConfig {
+  id          String    @id @default(uuid()) @db.Uuid
+  configKey   String    @unique @map("config_key")
+  configValue String?   @map("config_value") @db.Text
+  configType  String?   @map("config_type")
+  description String?   @db.Text
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
