@@ -1,0 +1,84 @@
+ // If you copy and paste this example, you will need to remove the comments prefixed with `//`, which are not valid JSON.
+ {
+   "mcpServers": {
+     "github-mcp-server": {
+       "type": "http",
+       // Remove "/readonly" to enable wider access to all tools.
+       // Then, use the "X-MCP-Toolsets" header to specify which toolsets you'd like to include.
+       // Use the "tools" field to select individual tools from the toolsets.
+       "url": "https://api.githubcopilot.com/mcp/readonly",
+       "tools": ["*"],
+       "headers": {
+         "X-MCP-Toolsets": "repos,issues,users,pull_requests,code_security,secret_protection,actions,web_search"
+       }
+     }
+   }
+ }
+ https://api.githubcopilot.com/mcp/readonly
+// If you copy and paste this example, you will need to remove the comments prefixed with `//`, which are not valid JSON.
+{
+  "mcpServers": {
+    "atlassian-rovo-mcp": {
+      "command": "npx",
+      "type": "local",
+      "tools": ["*"],
+      "args": [
+        "mcp-remote@latest",
+        "https://mcp.atlassian.com/v1/mcp",
+        // We can use the $ATLASSIAN_API_KEY environment variable which is passed
+        // to the server because of the `env` value below.
+        "--header",
+        "Authorization: Basic $ATLASSIAN_API_KEY"
+      ],
+      "env": {
+        // The value of the `COPILOT_MCP_ATLASSIAN_API_KEY` secret will be passed
+        // to the server command as an environment variable
+        // called `ATLASSIAN_API_KEY`.
+        "ATLASSIAN_API_KEY": "$COPILOT_MCP_ATLASSIAN_API_KEY"
+      }
+    }
+  }
+}
+https://mcp.atlassian.com/v1/mcp{
+  "mcpServers": {
+    "ado": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "<your-azure-devops-organization>", "-a", "azcli"],
+      "tools": ["wit_get_work_item", "wit_get_work_items_batch_by_ids", ...]
+    }
+  }
+}
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+on:
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    environment: copilot
+    steps:
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+          {
+  "mcpServers": {
+    "cloudflare": {
+      "type": "sse",
+      "url": "https://docs.mcp.cloudflare.com/sse",
+      "tools": ["*"]
+    }
+  }
+}
+https://docs.mcp.cloudflare.com/sse
