@@ -1,0 +1,30 @@
+{
+  "name": "cfi-platform",
+  "version": "1.0.0",
+  "description": "Crypto-to-Fiat Interface (CFI) Platform - Enterprise Financial Services",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "database"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "db:migrate": "cd database && npx prisma migrate dev",
+    "db:seed": "cd database && npx prisma db seed",
+    "db:studio": "cd database && npx prisma studio"
+  },
+  "devDependencies": {
+    "turbo": "^1.11.2",
+    "prettier": "^3.0.0",
+    "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
