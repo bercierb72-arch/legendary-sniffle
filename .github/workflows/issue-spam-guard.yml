@@ -35,13 +35,31 @@ jobs:
               return;
             }
 
-            const issue_number = context.payload.issue.number;
+            if (context.payload.issue.state === "closed") {
+              core.info("Issue already closed.");
+              return;
+            }
 
-            await github.rest.issues.createComment({
+            const issue_number = context.payload.issue.number;
+            const moderationMarker = "<!-- issue-spam-guard -->";
+
+            const { data: comments } = await github.rest.issues.listComments({
               ...context.repo,
               issue_number,
-              body: "This issue was closed automatically by repository moderation. If this was closed in error, please open a new issue with project-related details only."
+              per_page: 100
             });
+
+            const alreadyCommented = comments.some((comment) =>
+              (comment.body || "").includes(moderationMarker)
+            );
+
+            if (!alreadyCommented) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number,
+                body: `${moderationMarker}\nThis issue was closed automatically by repository moderation. If this was closed in error, please open a new issue with project-related details only.`
+              });
+            }
 
             await github.rest.issues.update({
               ...context.repo,
