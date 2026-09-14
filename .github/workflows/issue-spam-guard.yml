@@ -35,11 +35,6 @@ jobs:
               return;
             }
 
-            if (context.payload.issue.state === "closed") {
-              core.info("Issue already closed.");
-              return;
-            }
-
             const issue_number = context.payload.issue.number;
             const moderationMarker = "<!-- issue-spam-guard -->";
 
