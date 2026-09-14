@@ -40,7 +40,7 @@ jobs:
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number,
-              body: "Closing automatically because this issue matches a known phishing/spam URL pattern. Please open a new issue with project-related details only."
+              body: "This issue was closed automatically by repository moderation. If this was closed in error, please open a new issue with project-related details only."
             });
 
             await github.rest.issues.update({
