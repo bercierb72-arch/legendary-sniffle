@@ -52,7 +52,7 @@ jobs:
               await github.rest.issues.createComment({
                 ...context.repo,
                 issue_number,
-                body: `${moderationMarker}\nThis issue was closed automatically by repository moderation. If this was closed in error, please open a new issue with project-related details only.`
+                body: `${moderationMarker}\nThis issue was closed automatically by repository moderation. If this was closed in error, please edit this issue to remove suspicious links/content and ask a maintainer to review.`
               });
             }
 
