@@ -35,6 +35,26 @@ jobs:
               return;
             }
 
+            if (context.payload.action === "reopened") {
+              const senderLogin = context.payload.sender?.login;
+
+              if (senderLogin) {
+                try {
+                  const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+                    ...context.repo,
+                    username: senderLogin
+                  });
+
+                  if (["admin", "maintain", "write"].includes(permission.permission)) {
+                    core.info(`Issue reopened by maintainer (${senderLogin}); skipping auto-close.`);
+                    return;
+                  }
+                } catch (error) {
+                  core.info("Could not resolve sender permission level; continuing with moderation checks.");
+                }
+              }
+            }
+
             const issue_number = context.payload.issue.number;
             const moderationMarker = "<!-- issue-spam-guard -->";
 
