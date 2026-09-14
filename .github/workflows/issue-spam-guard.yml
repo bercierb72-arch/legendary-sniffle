@@ -64,6 +64,5 @@ jobs:
             await github.rest.issues.update({
               ...context.repo,
               issue_number,
-              state: "closed",
-              state_reason: "not_planned"
+              state: "closed"
             });
