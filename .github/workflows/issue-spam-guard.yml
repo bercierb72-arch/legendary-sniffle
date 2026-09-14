@@ -1,0 +1,51 @@
+name: Issue Spam Guard
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  close-suspicious-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close known phishing issue patterns
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = (context.payload.issue.title || "").toLowerCase();
+            const body = (context.payload.issue.body || "").toLowerCase();
+            const text = `${title}\n${body}`;
+
+            const suspiciousPatterns = [
+              "ghostchip.behindthemarkets.com",
+              "_ef_transaction_id=",
+              "gopay-transfer-payment-qr"
+            ];
+
+            const isSuspicious = suspiciousPatterns.some((pattern) =>
+              text.includes(pattern)
+            );
+
+            if (!isSuspicious) {
+              core.info("No suspicious pattern detected.");
+              return;
+            }
+
+            const issue_number = context.payload.issue.number;
+
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number,
+              body: "Closing automatically because this issue matches a known phishing/spam URL pattern. Please open a new issue with project-related details only."
+            });
+
+            await github.rest.issues.update({
+              ...context.repo,
+              issue_number,
+              state: "closed",
+              state_reason: "not_planned"
+            });
