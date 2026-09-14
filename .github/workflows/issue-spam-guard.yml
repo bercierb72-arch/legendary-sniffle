@@ -50,7 +50,8 @@ jobs:
                     return;
                   }
                 } catch (error) {
-                  core.info("Could not resolve sender permission level; continuing with moderation checks.");
+                  core.warning("Could not resolve sender permission level on reopened issue; skipping auto-close.");
+                  return;
                 }
               }
             }
