@@ -45,7 +45,7 @@ jobs:
                     username: senderLogin
                   });
 
-                  if (["admin", "maintain", "write"].includes(permission.permission)) {
+                  if (["admin", "maintain", "write", "triage"].includes(permission.permission)) {
                     core.info(`Issue reopened by maintainer (${senderLogin}); skipping auto-close.`);
                     return;
                   }
