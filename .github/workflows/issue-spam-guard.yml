@@ -56,7 +56,12 @@ jobs:
               });
             }
 
-            if (context.payload.issue.state !== "closed") {
+            const { data: currentIssue } = await github.rest.issues.get({
+              ...context.repo,
+              issue_number
+            });
+
+            if (currentIssue.state !== "closed") {
               await github.rest.issues.update({
                 ...context.repo,
                 issue_number,
